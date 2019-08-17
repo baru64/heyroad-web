@@ -1,0 +1,31 @@
+{% extends "heyroad/base.html" %}
+
+{% block content %}
+    <div class="post">
+        <div class="date">
+            {{ route.date }}
+        </div>
+        <p><a href="{% url 'user' pk=route.user.pk %}">
+            {{ route.user }}
+        </a>
+        cycled {{ route.distance }}km in {{ route.duration }}.</p>
+        <table class="table">
+            <thead>
+            <tr>
+                <th scope="col">#</th>
+                <th scope="col">Latitude</th>
+                <th scope="col">Longitude</th>
+            </tr>
+            </thead>
+            <tbody>
+                {% for latlng in latlng_list %}
+                <tr>
+                    <th scope="row">{{ loop.index }}</th>
+                    <td>{{ latlng.latitude }}</td>
+                    <td>{{ latlng.longitude }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}

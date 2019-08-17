@@ -1,0 +1,21 @@
+{% extends "heyroad/base.html" %}
+
+{% block content %}
+    {% for route in object_list %}
+        <div class="post">
+            {% if user.is_authenticated and route.user == user %}
+            <a class="btn btn-default" href="{% url 'route-delete' pk=route.pk %}">
+                <span>delete</span>
+            </a>
+            {% endif %}
+            <div class="date">
+                {{ route.date }}
+            </div>
+            <p><a href="{% url 'user' pk=route.user.pk %}">
+                {{ route.user }}
+            </a>
+            cycled {{ route.distance }}km in {{ route.duration }}.</p>
+            <a href="{% url 'route' pk=route.pk %}">More</a>
+        </div>
+    {% endfor %}
+{% endblock %}

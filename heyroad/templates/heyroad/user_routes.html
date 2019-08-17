@@ -1,0 +1,21 @@
+{% extends "heyroad/base.html" %}
+
+{% block content %}
+    <div>
+        <h2>{{ user.username }}</h2>
+        <p>
+            Total distance: {{ user_stats.total_distance }} <br>
+            Total duration: {{ user_stats.total_duration }}
+        </p>
+    </div>
+    {% for route in route_list %}
+        <div class="post">
+            <div class="date">
+                {{ route.date }}
+            </div>
+            <p><a href="">{{ route.user }}</a>
+            cycled {{ route.distance }}km in {{ route.duration }}.</p>
+            <a href="{% url 'route' pk=route.pk %}">More</a>
+        </div>
+    {% endfor %}
+{% endblock %}
