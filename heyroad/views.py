@@ -1,12 +1,19 @@
+import json
+from django.utils.dateparse import parse_datetime, parse_duration
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.views.generic import ListView, DetailView, CreateView, FormView, \
                                  DeleteView
 from django.db.models import Sum
+from rest_framework import viewsets, permissions, status
+from rest_framework.response import Response
 
+from heyroad.permissions import IsOwnerOrReadOnly
 from heyroad.models import Route, LatLng
-from heyroad.forms import UserRegisterForm #, RouteDeleteForm
+from heyroad.forms import UserRegisterForm
+from heyroad.serializers import UserSerializer, RouteSerializer,        \
+                         UserDetailSerializer, RouteDetailSerializer    \
 
 # TODO class-based views
 class RouteList(ListView):
@@ -81,4 +88,59 @@ class RouteDelete(LoginRequiredMixin, DeleteView):
         return self.model.objects.filter(pk=pk).filter(user=owner)
 
 # TODO:
-# API CREATE/DELETE/GET ROUTE, REGISTER/LOGIN USER
+# API CREATE/DELETE ROUTE, REGISTER/LOGIN USER
+
+class UserViewSet(viewsets.ViewSet):
+
+    def list(self, request):
+        queryset = User.objects.all()
+        serializer = UserSerializer(queryset,
+                                    context={'request': request},
+                                    many=True)
+        return Response(serializer.data)
+
+    def retrieve(self, request, pk=None):
+        queryset = User.objects.all()
+        user = get_object_or_404(queryset, pk=pk)
+        serializer = UserDetailSerializer(user, context={'request': request})
+        return Response(serializer.data)
+
+class RouteViewSet(viewsets.ViewSet):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly,
+                          IsOwnerOrReadOnly]
+
+    def list(self, request):
+        queryset = Route.objects.all()
+        serializer = RouteSerializer(queryset,
+                                     context={'request': request},
+                                     many=True)
+        return Response(serializer.data)
+
+    def retrieve(self, request, pk=None):
+        queryset = Route.objects.all()
+        route = get_object_or_404(queryset, pk=pk)
+        serializer = RouteDetailSerializer(route, context={'request': request})
+        return Response(serializer.data)
+
+    def create(self, request):
+        body_unicode = request.body.decode('utf-8')
+        body = json.loads(body_unicode)
+        
+        # create route object
+        distance = float(body['distance'])
+        date = parse_datetime(body['date'])
+        duration = parse_duration(body['duration'])
+        new_route = Route.objects.create(user=request.user,
+                                         distance=distance,
+                                         duration=duration,
+                                         date=date)
+        new_route.save()
+        # create latlngs
+        for coordinate in body['latlngs']:
+            latlng = LatLng.objects.create(route=new_route,
+                                           latitude=coordinate['latitude'],
+                                           longitude=coordinate['longitude'])
+            latlng.save()
+
+        result = {'result': 'success'}
+        return Response(result, status=status.HTTP_201_CREATED)

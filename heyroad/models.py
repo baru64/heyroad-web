@@ -4,7 +4,8 @@ from django.utils import timezone
 from django.contrib.auth.models import User
 
 class Route(models.Model):
-    user = models.ForeignKey('auth.User', on_delete=models.CASCADE)
+    user = models.ForeignKey('auth.User', related_name='routes',
+                             on_delete=models.CASCADE)
     distance = models.FloatField()
     date = models.DateTimeField(default=timezone.now)
     duration = models.DurationField(default=timedelta(minutes=20))
@@ -18,6 +19,7 @@ class Route(models.Model):
                                  self.duration)
 
 class LatLng(models.Model):
-    route = models.ForeignKey('Route', on_delete=models.CASCADE)
+    route = models.ForeignKey('Route', related_name='coords',
+                              on_delete=models.CASCADE)
     latitude = models.FloatField()
     longitude = models.FloatField()
