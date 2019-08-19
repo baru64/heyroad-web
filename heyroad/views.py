@@ -8,6 +8,7 @@ from django.views.generic import ListView, DetailView, CreateView, FormView, \
 from django.db.models import Sum
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
+from rest_framework.authentication import TokenAuthentication
 
 from heyroad.permissions import IsOwnerOrReadOnly
 from heyroad.models import Route, LatLng
@@ -106,6 +107,7 @@ class UserViewSet(viewsets.ViewSet):
         return Response(serializer.data)
 
 class RouteViewSet(viewsets.ViewSet):
+    authentication_classes = [TokenAuthentication]
     permission_classes = [permissions.IsAuthenticatedOrReadOnly,
                           IsOwnerOrReadOnly]
 

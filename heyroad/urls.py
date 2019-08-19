@@ -1,5 +1,6 @@
 from django.urls import path, include
 from rest_framework import routers
+from rest_framework.authtoken.views import obtain_auth_token
 
 from . import views
 
@@ -16,5 +17,5 @@ urlpatterns = [
          name='route-delete'),
     path('register/', views.UserRegister.as_view(), name='register'),
     path('api/', include(router.urls)),
-    path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
+    path('api-auth/', obtain_auth_token),
 ]
