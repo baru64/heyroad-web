@@ -23,3 +23,5 @@ class LatLng(models.Model):
                               on_delete=models.CASCADE)
     latitude = models.FloatField()
     longitude = models.FloatField()
+
+# TODO user friends, route comments

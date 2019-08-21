@@ -17,5 +17,6 @@ urlpatterns = [
          name='route-delete'),
     path('register/', views.UserRegister.as_view(), name='register'),
     path('api/', include(router.urls)),
-    path('api-auth/', obtain_auth_token),
+    path('api-auth/login/', obtain_auth_token),
+    path('api-auth/register/', views.RegisterAPIView.as_view()),
 ]

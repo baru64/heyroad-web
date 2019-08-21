@@ -9,6 +9,7 @@ from django.db.models import Sum
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication
+from rest_framework.views import APIView
 
 from heyroad.permissions import IsOwnerOrReadOnly
 from heyroad.models import Route, LatLng
@@ -16,7 +17,6 @@ from heyroad.forms import UserRegisterForm
 from heyroad.serializers import UserSerializer, RouteSerializer,        \
                          UserDetailSerializer, RouteDetailSerializer    \
 
-# TODO class-based views
 class RouteList(ListView):
     model = Route
     template_name = 'heyroad/route_list.html'
@@ -88,9 +88,6 @@ class RouteDelete(LoginRequiredMixin, DeleteView):
         pk = self.kwargs.get('pk')
         return self.model.objects.filter(pk=pk).filter(user=owner)
 
-# TODO:
-# API CREATE/DELETE ROUTE, REGISTER/LOGIN USER
-
 class UserViewSet(viewsets.ViewSet):
 
     def list(self, request):
@@ -138,7 +135,7 @@ class RouteViewSet(viewsets.ViewSet):
                                          date=date)
         new_route.save()
         # create latlngs
-        for coordinate in body['latlngs']:
+        for coordinate in body['coords']:
             latlng = LatLng.objects.create(route=new_route,
                                            latitude=coordinate['latitude'],
                                            longitude=coordinate['longitude'])
@@ -146,3 +143,29 @@ class RouteViewSet(viewsets.ViewSet):
 
         result = {'result': 'success'}
         return Response(result, status=status.HTTP_201_CREATED)
+
+class RegisterAPIView(APIView):
+
+    def post(self, request, format=None):
+        body_unicode = request.body.decode('utf-8')
+        body = json.loads(body_unicode)
+        username = body['username']
+        password = body['password']
+        email = body['email']
+
+        if User.objects.filter(username=username).exists():
+            result = {'result': 'failed_username_used'}
+            return Response(result, status=status.HTTP_409_CONFLICT)
+        elif User.objects.filter(email=email).exists():
+            result = {'result': 'failed_email_used'}
+            return Response(result, status=status.HTTP_409_CONFLICT)
+        else:
+            user = User(username=username, email=email)
+            user.set_password(password)
+            user.save()
+            result = {'result': 'success'}
+            return Response(result, status=status.HTTP_201_CREATED)
+
+# TODO:
+# - friends
+# - route comments
