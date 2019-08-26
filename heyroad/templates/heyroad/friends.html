@@ -1,0 +1,45 @@
+{% extends "heyroad/base.html" %}
+
+{% block content %}
+    <div>
+        <h3>My Friends</h3>
+        <p>
+            {% for friendship in friend_list %}
+                <form method="POST" class="post-form">{% csrf_token %}
+                    {% if friendship.user1.pk is not user.pk %}
+                        {{ friendship.user1.username }}
+                    {% else %}
+                        {{ friendship.user1.username }}
+                    {% endif %}
+                    <input type="hidden" name="pk" value="{{ friendship.pk }}">
+                    <button type="submit" name="action" value="decline" class="save btn btn-default">
+                        Delete
+                    </button>
+                </form>
+            {% endfor %}
+        </p>
+    </div>
+    <div>
+        <h3>Pending Requests</h3>
+        <p>
+            {% for req in request_list %}
+                <form method="POST" class="post-form">{% csrf_token %}
+                    {{ req.user1.username }}
+                    <input type="hidden" name="pk" value="{{ req.pk }}">
+                    <button type="submit" name="action" value="accept" class="save btn btn-default">
+                        Accept
+                    </button>
+                    <button type="submit" name="action" value="decline" class="save btn btn-default">
+                        Decline
+                    </button>
+                </form>
+            {% endfor %}
+        </p>
+    </div>
+    <form method="POST" class="post-form">{% csrf_token %}
+        {{ invite_form.as_p }}
+        <button type="submit" name="action" value="invite" class="save btn btn-default">
+            Invite
+        </button>
+    </form>
+{% endblock %}

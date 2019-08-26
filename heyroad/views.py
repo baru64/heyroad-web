@@ -1,30 +1,49 @@
 import json
+from itertools import chain
 from django.utils.dateparse import parse_datetime, parse_duration
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.views.generic import ListView, DetailView, CreateView, FormView, \
-                                 DeleteView
-from django.db.models import Sum
+                                 DeleteView, View
+from django.db.models import Sum, Q
+from django.middleware.csrf import CsrfViewMiddleware
+
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.views import APIView
 
 from heyroad.permissions import IsOwnerOrReadOnly
-from heyroad.models import Route, LatLng
-from heyroad.forms import UserRegisterForm
+from heyroad.models import Route, LatLng, Friendship
+from heyroad.forms import UserRegisterForm, FriendshipInviteForm       
 from heyroad.serializers import UserSerializer, RouteSerializer,        \
                          UserDetailSerializer, RouteDetailSerializer    \
 
-class RouteList(ListView):
-    model = Route
+class RouteList(LoginRequiredMixin, ListView):
+    # model = Route
     template_name = 'heyroad/route_list.html'
+    login_url = '/login/'
+    redirect_field_name = 'redirect_to'
 
-class UserDetail(DetailView):
+    def get_queryset(self):
+        friends1 = Friendship.objects                   \
+                   .filter(user1=self.request.user)     \
+                   .values_list('user2', flat=True)
+        friends2 = Friendship.objects                   \
+                   .filter(user2=self.request.user)     \
+                   .values_list('user1', flat=True)
+        all_friends = list(chain(friends1, friends2))
+        all_friends.append(self.request.user)
+        queryset = Route.objects.filter(user__in=all_friends)
+        return queryset
+
+class UserDetail(LoginRequiredMixin, DetailView):
     model = User
     template_name = 'heyroad/user_routes.html'
     context_object_name = 'user'
+    login_url = '/login/'
+    redirect_field_name = 'redirect_to'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -38,10 +57,24 @@ class UserDetail(DetailView):
                                 total_distance=Sum('distance'))
         return context
 
-class RouteDetail(DetailView):
+    def dispatch(self, request, *args, **kwargs):
+        """
+        Redirect if requested resource owner is not friend of user
+        """
+        user = get_object_or_404(User, pk=self.kwargs.get('pk'))
+        if user == self.request.user or Friendship.objects.filter(
+            Q(user1=self.request.user, user2=user) |
+            Q(user2=self.request.user, user1=user)
+           ).exists():
+           return super(UserDetail, self).dispatch(request, *args, **kwargs)
+        return redirect('home')
+
+class RouteDetail(LoginRequiredMixin, DetailView):
     model = Route
     template_name = 'heyroad/route_detail.html'
     context_object_name = 'route'
+    login_url = '/login/'
+    redirect_field_name = 'redirect_to'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -49,6 +82,19 @@ class RouteDetail(DetailView):
         # Get route coordinates
         context['latlng_list'] = LatLng.objects.filter(route=route)
         return context
+
+    def dispatch(self, request, *args, **kwargs):
+        """
+        Redirect if requested resource owner is not friend of user
+        """
+        route = get_object_or_404(Route, pk=self.kwargs.get('pk'))
+        user = route.user
+        if user == self.request.user or Friendship.objects.filter(
+            Q(user1=self.request.user, user2=user) |
+            Q(user2=self.request.user, user1=user)
+           ).exists():
+           return super(RouteDetail, self).dispatch(request, *args, **kwargs)
+        return redirect('home')
 
 class UserRegister(FormView):
     template_name = 'heyroad/register.html'
@@ -62,21 +108,6 @@ class UserRegister(FormView):
     def form_invalid(self, form):
         return super().form_invalid(form)
 
-# class RouteDelete(LoginRequiredMixin, View): CSRF vulnerable!
-
-#     def post(self, request, pk):
-#         route = get_object_or_404(Route, pk=pk)
-#         latlng_list = LatLng.objects.filter(route=route)
-
-# class RouteDelete(LoginRequiredMixin, FormView):
-#     template_name = 'heyroad/route_delete.html'
-#     form_class = RouteDeleteForm
-#     success_url = '/'
-
-#     def form_valid(self, form):
-#         # delete stuff
-#         return super().form_valid()
-
 class RouteDelete(LoginRequiredMixin, DeleteView):
     model = Route
     template_name = 'heyroad/route_delete.html'
@@ -87,6 +118,73 @@ class RouteDelete(LoginRequiredMixin, DeleteView):
         owner = self.request.user
         pk = self.kwargs.get('pk')
         return self.model.objects.filter(pk=pk).filter(user=owner)
+
+class FriendView(LoginRequiredMixin, View):
+    login_url = '/login/'
+    redirect_field_name = 'redirect_to'
+
+    def get(self, request):
+        friend_list = Friendship.objects.filter(
+            Q(user2=request.user) |  Q(user1=request.user),
+            is_accepted=True
+        )
+        request_list = Friendship.objects.filter(
+            user2=request.user,
+            is_accepted=False
+        )
+        invite_form = FriendshipInviteForm()
+        return render(request, 'heyroad/friends.html',
+                      {'friend_list': friend_list,
+                       'request_list': request_list,
+                       'invite_form': invite_form})
+
+    def post(self, request):
+        error = None
+        try:
+            # check csrf
+            check = CsrfViewMiddleware().process_view(request, None, (), {})
+            if check:
+                raise PermissionError
+            
+            # check request action
+            if request.POST['action'] == 'invite':
+                form = FriendshipInviteForm(request.POST)
+                if form.is_valid():
+                    user2 = User.objects.get(
+                        username=form.cleaned_data['invited_username']
+                    )
+                    new_friendship = Friendship.objects.create(
+                        user1=request.user,
+                        user2=user2,
+                        is_accepted=False
+                    )
+                    new_friendship.save()
+            elif request.POST['action'] == 'accept':
+                friendship_obj = Friendship.objects.get(pk=request.POST['pk'])
+                friendship_obj.is_accepted = True
+                friendship_obj.save()
+            elif request.POST['action'] == 'decline':
+                friendship_obj = Friendship.objects.get(pk=request.POST['pk'])
+                friendship_obj.delete()
+        except Exception as e:
+            error = 'Error: ' + str(e)
+
+        friend_list = Friendship.objects.filter(
+            Q(user2=request.user) |  Q(user1=request.user),
+            is_accepted=True
+        )
+        request_list = Friendship.objects.filter(
+            user2=request.user,
+            is_accepted=False
+        )
+        invite_form = FriendshipInviteForm()
+        return render(request, 'heyroad/friends.html',
+                      {'friend_list': friend_list,
+                       'request_list': request_list,
+                       'invite_form': invite_form,
+                       'error': error})
+
+# -------------- REST API ----------------
 
 class UserViewSet(viewsets.ViewSet):
 

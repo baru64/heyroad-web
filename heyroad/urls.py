@@ -16,6 +16,7 @@ urlpatterns = [
          views.RouteDelete.as_view(),
          name='route-delete'),
     path('register/', views.UserRegister.as_view(), name='register'),
+    path('friends/', views.FriendView.as_view(), name='friends'),
     path('api/', include(router.urls)),
     path('api-auth/login/', obtain_auth_token),
     path('api-auth/register/', views.RegisterAPIView.as_view()),
