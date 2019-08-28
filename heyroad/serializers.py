@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 
-from .models import Route, LatLng
+from .models import Route, LatLng, Friendship
 
 
 class UserSerializer(serializers.HyperlinkedModelSerializer):
@@ -37,3 +37,9 @@ class RouteDetailSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = Route
         fields = ['url', 'user', 'distance', 'date', 'duration', 'coords']
+
+class FriendshipSerializer(serializers.HyperlinkedModelSerializer):
+
+    class Meta:
+        model = Friendship
+        fields = ['user1', 'user2', 'is_accepted']
