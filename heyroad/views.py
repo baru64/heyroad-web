@@ -17,8 +17,14 @@ from rest_framework.views import APIView
 from heyroad.permissions import IsOwnerOrReadOnly
 from heyroad.models import Route, LatLng, Friendship
 from heyroad.forms import UserRegisterForm, FriendshipInviteForm       
-from heyroad.serializers import UserSerializer, RouteSerializer,        \
-                         UserDetailSerializer, RouteDetailSerializer    \
+from heyroad.serializers import (
+    UserSerializer,
+    RouteSerializer,
+    UserDetailSerializer,
+    RouteDetailSerializer,
+    FriendshipSerializer
+)
+                        
 
 class RouteList(LoginRequiredMixin, ListView):
     # model = Route
@@ -29,9 +35,11 @@ class RouteList(LoginRequiredMixin, ListView):
     def get_queryset(self):
         friends1 = Friendship.objects                   \
                    .filter(user1=self.request.user)     \
+                   .filter(is_accepted=True)            \
                    .values_list('user2', flat=True)
         friends2 = Friendship.objects                   \
                    .filter(user2=self.request.user)     \
+                   .filter(is_accepted=True)            \
                    .values_list('user1', flat=True)
         all_friends = list(chain(friends1, friends2))
         all_friends.append(self.request.user)
@@ -65,7 +73,7 @@ class UserDetail(LoginRequiredMixin, DetailView):
         if user == self.request.user or Friendship.objects.filter(
             Q(user1=self.request.user, user2=user) |
             Q(user2=self.request.user, user1=user)
-           ).exists():
+           ).filter(is_accepted=True).exists():
            return super(UserDetail, self).dispatch(request, *args, **kwargs)
         return redirect('home')
 
@@ -92,7 +100,7 @@ class RouteDetail(LoginRequiredMixin, DetailView):
         if user == self.request.user or Friendship.objects.filter(
             Q(user1=self.request.user, user2=user) |
             Q(user2=self.request.user, user1=user)
-           ).exists():
+           ).filter(is_accepted=True).exists():
            return super(RouteDetail, self).dispatch(request, *args, **kwargs)
         return redirect('home')
 
@@ -187,34 +195,64 @@ class FriendView(LoginRequiredMixin, View):
 # -------------- REST API ----------------
 
 class UserViewSet(viewsets.ViewSet):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _get_queryset(self, request):
+        friends1 = Friendship.objects                   \
+                   .filter(user1=request.user)          \
+                   .filter(is_accepted=True)            \
+                   .values_list('user2', flat=True)
+        friends2 = Friendship.objects                   \
+                   .filter(user2=request.user)          \
+                   .filter(is_accepted=True)            \
+                   .values_list('user1', flat=True)
+        all_friends = list(chain(friends1, friends2))
+        all_friends.append(request.user.pk)
+        print(all_friends)
+        queryset = User.objects.filter(pk__in=all_friends)
+        return queryset
 
     def list(self, request):
-        queryset = User.objects.all()
+        queryset = self._get_queryset(request)
         serializer = UserSerializer(queryset,
                                     context={'request': request},
                                     many=True)
         return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
-        queryset = User.objects.all()
+        queryset = self._get_queryset(request)
         user = get_object_or_404(queryset, pk=pk)
         serializer = UserDetailSerializer(user, context={'request': request})
         return Response(serializer.data)
 
 class RouteViewSet(viewsets.ViewSet):
     authentication_classes = [TokenAuthentication]
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly,
-                          IsOwnerOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
+
+    def _get_queryset(self, request):
+        friends1 = Friendship.objects                   \
+                   .filter(user1=request.user)          \
+                   .filter(is_accepted=True)            \
+                   .values_list('user2', flat=True)
+        friends2 = Friendship.objects                   \
+                   .filter(user2=request.user)          \
+                   .filter(is_accepted=True)            \
+                   .values_list('user1', flat=True)
+        all_friends = list(chain(friends1, friends2))
+        all_friends.append(request.user)
+        queryset = Route.objects.filter(user__in=all_friends)
+        return queryset
 
     def list(self, request):
-        queryset = Route.objects.all()
+        queryset = self._get_queryset(request)
         serializer = RouteSerializer(queryset,
                                      context={'request': request},
                                      many=True)
         return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
-        queryset = Route.objects.all()
+        queryset = self._get_queryset(request)
         route = get_object_or_404(queryset, pk=pk)
         serializer = RouteDetailSerializer(route, context={'request': request})
         return Response(serializer.data)
@@ -242,6 +280,15 @@ class RouteViewSet(viewsets.ViewSet):
         result = {'result': 'success'}
         return Response(result, status=status.HTTP_201_CREATED)
 
+    def destroy(self, request, pk=None):
+        route = Route.objects.get(pk=pk)
+        if route.user == request.user:
+            route.delete()
+            result = {'result': 'success'}
+            return Response(result, status=status.HTTP_200_OK)
+        result = {'result': 'failed_unauthorized'}
+        return Response(result, status=status.HTTP_401_UNAUTHORIZED)
+
 class RegisterAPIView(APIView):
 
     def post(self, request, format=None):
@@ -264,6 +311,66 @@ class RegisterAPIView(APIView):
             result = {'result': 'success'}
             return Response(result, status=status.HTTP_201_CREATED)
 
+class FriendViewSet(viewsets.ViewSet):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _get_queryset(self, request):
+        queryset = Friendship.objects.filter(
+            Q(user2=request.user) |  Q(user1=request.user)
+        )
+        return queryset
+
+    def list(self, request):
+        queryset = self._get_queryset(request)
+        serializer = FriendshipSerializer(
+            queryset, context={'request': request}, many=True
+        )
+        return Response(serializer.data)
+
+    def retrieve(self, request, pk=None):
+        queryset = self._get_queryset(request)
+        friendship = get_object_or_404(queryset, pk=pk)
+        serializer = FriendshipSerializer(
+            friendship, context={'request': request}
+        )
+        return Response(serializer.data)
+
+    def create(self, request):
+        body_unicode = request.body.decode('utf-8')
+        body = json.loads(body_unicode)
+
+        # create friendship object
+        user2 = get_object_or_404(User, username=body['user2'])
+        new_friendship = Friendship.objects.create(
+            user1=request.user,
+            user2=user2,
+            is_accepted=False
+        )
+        new_friendship.save()
+
+        result = {'result': 'success'}
+        return Response(result, status=status.HTTP_201_CREATED)
+
+    def update(self, request, pk=None):
+        body_unicode = request.body.decode('utf-8')
+        body = json.loads(body_unicode)
+
+        queryset = Friendship.objects.filter(user2=request.user)
+        friendship = get_object_or_404(queryset, pk=pk)
+        if body['is_accepted'] == "True":
+            friendship.is_accepted = True
+            friendship.save()
+
+        result = {'result': 'success'}
+        return Response(result, status=status.HTTP_200_OK)
+
+    def destroy(self, request, pk=None):
+        queryset = self._get_queryset(request)
+        friendship = get_object_or_404(queryset, pk=pk)
+        friendship.delete()
+        result = {'result': 'succes'}
+        return Response(result, status=status.HTTP_200_OK)
+        
 # TODO:
-# - friends
 # - route comments
