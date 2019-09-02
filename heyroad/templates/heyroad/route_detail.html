@@ -4,6 +4,9 @@
     <div class="post">
         <div class="date">
             {{ route.date }}
+            <a class="delete" href="{% url 'route-delete' pk=route.pk %}">
+                delete
+            </a>
         </div>
         <p><a href="{% url 'user' pk=route.user.pk %}">
             {{ route.user }}

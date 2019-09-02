@@ -4,12 +4,12 @@
     {% for route in object_list %}
         <div class="post">
             {% if user.is_authenticated and route.user == user %}
-            <a class="btn btn-default" href="{% url 'route-delete' pk=route.pk %}">
-                <span>delete</span>
-            </a>
             {% endif %}
             <div class="date">
                 {{ route.date }}
+            <a class="delete" href="{% url 'route-delete' pk=route.pk %}">
+                delete
+            </a>
             </div>
             <p><a href="{% url 'user' pk=route.user.pk %}">
                 {{ route.user }}

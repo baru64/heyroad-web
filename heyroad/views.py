@@ -208,8 +208,9 @@ class UserViewSet(viewsets.ViewSet):
                    .filter(is_accepted=True)            \
                    .values_list('user1', flat=True)
         all_friends = list(chain(friends1, friends2))
-        all_friends.append(request.user)
-        queryset = User.objects.filter(username__in=all_friends)
+        all_friends.append(request.user.pk)
+        print(all_friends)
+        queryset = User.objects.filter(pk__in=all_friends)
         return queryset
 
     def list(self, request):
@@ -251,7 +252,6 @@ class RouteViewSet(viewsets.ViewSet):
         return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
-        #queryset = Route.objects.all()
         queryset = self._get_queryset(request)
         route = get_object_or_404(queryset, pk=pk)
         serializer = RouteDetailSerializer(route, context={'request': request})
@@ -311,16 +311,66 @@ class RegisterAPIView(APIView):
             result = {'result': 'success'}
             return Response(result, status=status.HTTP_201_CREATED)
 
-class FriendViewSet(viewsets.ModelViewSet):
+class FriendViewSet(viewsets.ViewSet):
     authentication_classes = [TokenAuthentication]
     permission_classes = [permissions.IsAuthenticated]
-    serializer_class = FriendshipSerializer
 
-    def get_queryset(self):
+    def _get_queryset(self, request):
         queryset = Friendship.objects.filter(
-            Q(user2=self.request.user) |  Q(user1=self.request.user)
+            Q(user2=request.user) |  Q(user1=request.user)
         )
         return queryset
 
+    def list(self, request):
+        queryset = self._get_queryset(request)
+        serializer = FriendshipSerializer(
+            queryset, context={'request': request}, many=True
+        )
+        return Response(serializer.data)
+
+    def retrieve(self, request, pk=None):
+        queryset = self._get_queryset(request)
+        friendship = get_object_or_404(queryset, pk=pk)
+        serializer = FriendshipSerializer(
+            friendship, context={'request': request}
+        )
+        return Response(serializer.data)
+
+    def create(self, request):
+        body_unicode = request.body.decode('utf-8')
+        body = json.loads(body_unicode)
+
+        # create friendship object
+        user2 = get_object_or_404(User, username=body['user2'])
+        new_friendship = Friendship.objects.create(
+            user1=request.user,
+            user2=user2,
+            is_accepted=False
+        )
+        new_friendship.save()
+
+        result = {'result': 'success'}
+        return Response(result, status=status.HTTP_201_CREATED)
+
+    def update(self, request, pk=None):
+        body_unicode = request.body.decode('utf-8')
+        body = json.loads(body_unicode)
+
+        queryset = Friendship.objects.filter(user2=request.user)
+        friendship = get_object_or_404(queryset, pk=pk)
+        if body['is_accepted'] == "True":
+            friendship.is_accepted = True
+            friendship.save()
+
+        result = {'result': 'success'}
+        return Response(result, status=status.HTTP_200_OK)
+
+    def destroy(self, request, pk=None):
+        queryset = self._get_queryset(request)
+        friendship = get_object_or_404(queryset, pk=pk)
+        friendship.delete()
+        result = {'result': 'succes'}
+        return Response(result, status=status.HTTP_200_OK)
+        
 # TODO:
 # - route comments
