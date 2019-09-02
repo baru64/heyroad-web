@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 
-from .models import Route, Friendship
+from .models import Route, Friendship, Comment
 
 class UserRegisterForm(UserCreationForm):
     email = forms.EmailField()
@@ -14,6 +14,12 @@ class UserRegisterForm(UserCreationForm):
 class FriendshipInviteForm(forms.Form):
     invited_username = forms.CharField(label="Friend's username",
                                        max_length=150)
+
+class CommentForm(forms.ModelForm):
+
+    class Meta:
+        model = Comment
+        fields = ['text']
 
 # class FriendshipForm(forms.ModelForm):
 

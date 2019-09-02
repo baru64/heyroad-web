@@ -9,10 +9,10 @@
                     {% if friendship.user1.pk is not user.pk %}
                         {{ friendship.user1.username }}
                     {% else %}
-                        {{ friendship.user1.username }}
+                        {{ friendship.user2.username }}
                     {% endif %}
                     <input type="hidden" name="pk" value="{{ friendship.pk }}">
-                    <button type="submit" name="action" value="decline" class="save btn btn-default">
+                    <button type="submit" name="action" value="decline" class="delete save btn btn-default">
                         Delete
                     </button>
                 </form>
@@ -29,7 +29,7 @@
                     <button type="submit" name="action" value="accept" class="save btn btn-default">
                         Accept
                     </button>
-                    <button type="submit" name="action" value="decline" class="save btn btn-default">
+                    <button type="submit" name="action" value="decline" class="delete save btn btn-default">
                         Decline
                     </button>
                 </form>

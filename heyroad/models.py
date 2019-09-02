@@ -24,11 +24,20 @@ class LatLng(models.Model):
     latitude = models.FloatField()
     longitude = models.FloatField()
 
-# TODO route comments
-
 class Friendship(models.Model):
     user1 = models.ForeignKey('auth.User', related_name='user_1',
                               on_delete=models.CASCADE)
     user2 = models.ForeignKey('auth.User', related_name='user_2',
                               on_delete=models.CASCADE)
     is_accepted = models.BooleanField(default=False)
+
+class Comment(models.Model):
+    user = models.ForeignKey('auth.User', related_name='comments',
+                             on_delete=models.CASCADE)
+    route = models.ForeignKey('Route', related_name='comments',
+                               on_delete=models.CASCADE)
+    date = models.DateTimeField(default=timezone.now)
+    text = models.TextField(max_length=512)
+
+    class Meta:
+        ordering = ["date"]

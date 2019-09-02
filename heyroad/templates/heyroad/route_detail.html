@@ -31,4 +31,34 @@
             </tbody>
         </table>
     </div>
+    <div>
+        {% for comment in comment_list %}
+        <div>
+            <div class="date">
+                {{ comment.date }}
+                {% if user.is_authenticated and comment.user == user %}
+                <form action="/comment/delete/" method="POST" class="post-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="pk" value="{{ comment.pk }}">
+                    <button type="submit" class="delete save btn btn-default">
+                        Delete
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+            <p><a href="{% url 'user' pk=comment.user.pk %}">
+                {{ comment.user }}
+            </a></p>
+            <p>{{ comment.text }}</p>
+        </div>
+        {% endfor %}
+        <form action="/comment/" method="POST" class="post-form">
+            {% csrf_token %}
+            <input type="hidden" name="route-pk" value="{{ route.pk }}">
+            {{ comment_form.as_p }}
+            <button type="submit" class="save btn btn-default">
+                Add comment
+            </button>
+        </form>
+    </div>
 {% endblock %}

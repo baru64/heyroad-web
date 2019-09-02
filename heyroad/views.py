@@ -1,5 +1,6 @@
 import json
 from itertools import chain
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime, parse_duration
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -15,8 +16,8 @@ from rest_framework.authentication import TokenAuthentication
 from rest_framework.views import APIView
 
 from heyroad.permissions import IsOwnerOrReadOnly
-from heyroad.models import Route, LatLng, Friendship
-from heyroad.forms import UserRegisterForm, FriendshipInviteForm       
+from heyroad.models import Route, LatLng, Friendship, Comment
+from heyroad.forms import UserRegisterForm, FriendshipInviteForm, CommentForm       
 from heyroad.serializers import (
     UserSerializer,
     RouteSerializer,
@@ -89,6 +90,8 @@ class RouteDetail(LoginRequiredMixin, DetailView):
         route = get_object_or_404(Route, pk=self.kwargs.get('pk'))
         # Get route coordinates
         context['latlng_list'] = LatLng.objects.filter(route=route)
+        context['comment_list'] = Comment.objects.filter(route=route)
+        context['comment_form'] = CommentForm()
         return context
 
     def dispatch(self, request, *args, **kwargs):
@@ -169,11 +172,16 @@ class FriendView(LoginRequiredMixin, View):
                     new_friendship.save()
             elif request.POST['action'] == 'accept':
                 friendship_obj = Friendship.objects.get(pk=request.POST['pk'])
-                friendship_obj.is_accepted = True
-                friendship_obj.save()
+                if friendship_obj.user2 == request.user:
+                    friendship_obj.is_accepted = True
+                    friendship_obj.save()
+                else: raise PermissionError
             elif request.POST['action'] == 'decline':
                 friendship_obj = Friendship.objects.get(pk=request.POST['pk'])
-                friendship_obj.delete()
+                if (friendship_obj.user1 == request.user or 
+                    friendship_obj.user2 == request.user):
+                    friendship_obj.delete()
+                else: raise PermissionError
         except Exception as e:
             error = 'Error: ' + str(e)
 
@@ -191,6 +199,69 @@ class FriendView(LoginRequiredMixin, View):
                        'request_list': request_list,
                        'invite_form': invite_form,
                        'error': error})
+
+class CommentCreateView(LoginRequiredMixin, View):
+    login_url = '/login/'
+    redirect_field_name = 'redirect_to'
+
+    def _get_queryset(self, request):
+        friends1 = Friendship.objects                   \
+                   .filter(user1=request.user)          \
+                   .filter(is_accepted=True)            \
+                   .values_list('user2', flat=True)
+        friends2 = Friendship.objects                   \
+                   .filter(user2=request.user)          \
+                   .filter(is_accepted=True)            \
+                   .values_list('user1', flat=True)
+        all_friends = list(chain(friends1, friends2))
+        all_friends.append(request.user)
+        queryset = Route.objects.filter(user__in=all_friends)
+        return queryset
+
+    def get(self, request):
+        return redirect('home')
+
+    def post(self, request):
+        form = CommentForm(request.POST)
+        if form.is_valid():
+            comment = form.save(commit=False)
+            comment.user = request.user
+            comment.date = timezone.now()
+            queryset = self._get_queryset(request)
+            comment.route = get_object_or_404(
+                queryset, pk=request.POST['route-pk']
+            )
+            comment.save()
+            return redirect('route', pk=request.POST['route-pk'])
+
+        return redirect('home')
+    
+class CommentDeleteView(LoginRequiredMixin, View):
+    login_url = '/login/'
+    redirect_field_name = 'redirect_to'
+
+    def get(self, request):
+        return redirect('home')
+    
+    def post(self, request):
+        try:
+            # check csrf
+            check = CsrfViewMiddleware().process_view(request, None, (), {})
+            if check:
+                raise PermissionError
+            
+            comment = get_object_or_404(Comment, pk=request.POST['pk'])
+            if comment.user == request.user:
+                route_pk = comment.route.pk
+                comment.delete()
+                return redirect('route', pk=route_pk)
+            else:
+                raise PermissionError
+        except Exception as e:
+            error = 'Error: ' + str(e)
+        
+        return redirect('home')
+
 
 # -------------- REST API ----------------
 
@@ -373,4 +444,4 @@ class FriendViewSet(viewsets.ViewSet):
         return Response(result, status=status.HTTP_200_OK)
         
 # TODO:
-# - route comments
+# - api route comments
