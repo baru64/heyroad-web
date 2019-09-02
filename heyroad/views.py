@@ -14,12 +14,7 @@ from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.views import APIView
 
-from heyroad.permissions import (
-    IsOwnerOrReadOnly,
-    IsOwnerOrFriend,
-    IsInFriendship,
-    IsFriendOrMyself
-)
+from heyroad.permissions import IsOwnerOrReadOnly
 from heyroad.models import Route, LatLng, Friendship
 from heyroad.forms import UserRegisterForm, FriendshipInviteForm       
 from heyroad.serializers import (
@@ -201,36 +196,63 @@ class FriendView(LoginRequiredMixin, View):
 
 class UserViewSet(viewsets.ViewSet):
     authentication_classes = [TokenAuthentication]
-    permission_classes = [permissions.IsAuthenticated,
-                          IsFriendOrMyself]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _get_queryset(self, request):
+        friends1 = Friendship.objects                   \
+                   .filter(user1=request.user)          \
+                   .filter(is_accepted=True)            \
+                   .values_list('user2', flat=True)
+        friends2 = Friendship.objects                   \
+                   .filter(user2=request.user)          \
+                   .filter(is_accepted=True)            \
+                   .values_list('user1', flat=True)
+        all_friends = list(chain(friends1, friends2))
+        all_friends.append(request.user)
+        queryset = User.objects.filter(username__in=all_friends)
+        return queryset
 
     def list(self, request):
-        queryset = User.objects.all()
+        queryset = self._get_queryset(request)
         serializer = UserSerializer(queryset,
                                     context={'request': request},
                                     many=True)
         return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
-        queryset = User.objects.all()
+        queryset = self._get_queryset(request)
         user = get_object_or_404(queryset, pk=pk)
         serializer = UserDetailSerializer(user, context={'request': request})
         return Response(serializer.data)
 
 class RouteViewSet(viewsets.ViewSet):
     authentication_classes = [TokenAuthentication]
-    permission_classes = [permissions.IsAuthenticated,
-                          IsOwnerOrFriend]
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
+
+    def _get_queryset(self, request):
+        friends1 = Friendship.objects                   \
+                   .filter(user1=request.user)          \
+                   .filter(is_accepted=True)            \
+                   .values_list('user2', flat=True)
+        friends2 = Friendship.objects                   \
+                   .filter(user2=request.user)          \
+                   .filter(is_accepted=True)            \
+                   .values_list('user1', flat=True)
+        all_friends = list(chain(friends1, friends2))
+        all_friends.append(request.user)
+        queryset = Route.objects.filter(user__in=all_friends)
+        return queryset
 
     def list(self, request):
-        queryset = Route.objects.all()
+        queryset = self._get_queryset(request)
         serializer = RouteSerializer(queryset,
                                      context={'request': request},
                                      many=True)
         return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
-        queryset = Route.objects.all()
+        #queryset = Route.objects.all()
+        queryset = self._get_queryset(request)
         route = get_object_or_404(queryset, pk=pk)
         serializer = RouteDetailSerializer(route, context={'request': request})
         return Response(serializer.data)
@@ -258,14 +280,14 @@ class RouteViewSet(viewsets.ViewSet):
         result = {'result': 'success'}
         return Response(result, status=status.HTTP_201_CREATED)
 
-        def destroy(self, request, pk=None):
-            route = Route.objects.get(pk=pk)
-            if route.user == request.user:
-                route.delete()
-                result = {'result': 'success'}
-                return Response(result, status=status.HTTP_200_OK)
-            result = {'result': 'failed_unauthorized'}
-            return Response(result, status=status.HTTP_401_UNAUTHORIZED)
+    def destroy(self, request, pk=None):
+        route = Route.objects.get(pk=pk)
+        if route.user == request.user:
+            route.delete()
+            result = {'result': 'success'}
+            return Response(result, status=status.HTTP_200_OK)
+        result = {'result': 'failed_unauthorized'}
+        return Response(result, status=status.HTTP_401_UNAUTHORIZED)
 
 class RegisterAPIView(APIView):
 
@@ -290,14 +312,13 @@ class RegisterAPIView(APIView):
             return Response(result, status=status.HTTP_201_CREATED)
 
 class FriendViewSet(viewsets.ModelViewSet):
-    authentication_classes [TokenAuthentication]
-    permission_classes = [permissions.IsAuthenticated,
-                          permissions.IsInFriendship]
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = FriendshipSerializer
 
     def get_queryset(self):
         queryset = Friendship.objects.filter(
-            Q(user2=request.user) |  Q(user1=request.user)
+            Q(user2=self.request.user) |  Q(user1=self.request.user)
         )
         return queryset
 
