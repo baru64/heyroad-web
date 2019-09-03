@@ -280,7 +280,6 @@ class UserViewSet(viewsets.ViewSet):
                    .values_list('user1', flat=True)
         all_friends = list(chain(friends1, friends2))
         all_friends.append(request.user.pk)
-        print(all_friends)
         queryset = User.objects.filter(pk__in=all_friends)
         return queryset
 

@@ -4,50 +4,50 @@ from rest_framework import serializers
 from .models import Route, LatLng, Friendship, Comment
 
 
-class UserSerializer(serializers.HyperlinkedModelSerializer):
+class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['url', 'username', 'email']
+        fields = ['id', 'username', 'email']
 
-class UserDetailSerializer(serializers.HyperlinkedModelSerializer):
+class UserDetailSerializer(serializers.ModelSerializer):
     routes = serializers.HyperlinkedRelatedField(many=True,
                                                  view_name='route-detail',
                                                  read_only=True)
 
     class Meta:
         model = User
-        fields = ['url', 'username', 'email', 'routes']
+        fields = ['id', 'username', 'email', 'routes']
 
-class RouteSerializer(serializers.HyperlinkedModelSerializer):
+class RouteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Route
-        fields = ['url', 'user', 'distance', 'date', 'duration']
+        fields = ['id', 'user', 'distance', 'date', 'duration']
 
-class LatLngSerializer(serializers.HyperlinkedModelSerializer):
+class LatLngSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LatLng
         fields = ['latitude', 'longitude']
 
-class CommentSerializer(serializers.HyperlinkedModelSerializer):
+class CommentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Comment
-        fields = ['pk', 'user', 'route', 'date', 'text']
+        fields = ['id', 'user', 'route', 'date', 'text']
 
-class RouteDetailSerializer(serializers.HyperlinkedModelSerializer):
+class RouteDetailSerializer(serializers.ModelSerializer):
     coords = LatLngSerializer(many=True, read_only=True)
     comments = CommentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Route
-        fields = ['url', 'user', 'distance', 'date', 'duration', 'coords',
+        fields = ['id', 'user', 'distance', 'date', 'duration', 'coords',
                   'comments']
 
-class FriendshipSerializer(serializers.HyperlinkedModelSerializer):
+class FriendshipSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Friendship
-        fields = ['pk', 'user1', 'user2', 'is_accepted']
+        fields = ['id', 'user1', 'user2', 'is_accepted']
