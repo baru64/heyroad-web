@@ -440,8 +440,49 @@ class FriendViewSet(viewsets.ViewSet):
         queryset = self._get_queryset(request)
         friendship = get_object_or_404(queryset, pk=pk)
         friendship.delete()
-        result = {'result': 'succes'}
+        result = {'result': 'success'}
         return Response(result, status=status.HTTP_200_OK)
         
-# TODO:
-# - api route comments
+class CommentViewSet(viewsets.ViewSet):
+    authentication_classess = [TokenAuthentication]
+    permission_classess = [permissions.IsAuthenticated]
+
+    # TODO z jakiegos powodu request bez tokena wchodzi do create
+    # i wywala sie na filtrze
+    def create(self, request):
+        body_unicode = request.body.decode('utf-8')
+        body = json.loads(body_unicode)
+
+        # get routes
+        friends1 = Friendship.objects                   \
+                   .filter(user1=request.user)          \
+                   .filter(is_accepted=True)            \
+                   .values_list('user2', flat=True)
+        friends2 = Friendship.objects                   \
+                   .filter(user2=request.user)          \
+                   .filter(is_accepted=True)            \
+                   .values_list('user1', flat=True)
+        all_friends = list(chain(friends1, friends2))
+        all_friends.append(request.user)
+        queryset = Route.objects.filter(user__in=all_friends)
+
+        # create comment object
+        route = get_object_or_404(queryset, pk=body['route'])
+        new_comment = Comment.objects.create(
+            user=request.user,
+            route=route,
+            date=timezone.now(),
+            text=body['text']
+        )
+        new_comment.save()
+
+        result = {'result': 'success'}
+        return Response(result, status=status.HTTP_201_CREATED)
+        
+
+    def destroy(self, request, pk=None):
+        queryset = Comment.objects.filter(user=request.user)
+        comment = get_object_or_404(queryset, pk=pk)
+        comment.delete()
+        result = {'result': 'success'}
+        return Response(result, status=status.HTTP_200_OK)

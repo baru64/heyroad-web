@@ -8,6 +8,7 @@ router = routers.DefaultRouter()
 router.register(r'user', views.UserViewSet, basename='user')
 router.register(r'route', views.RouteViewSet, basename='route')
 router.register(r'friend', views.FriendViewSet, basename='friend')
+router.register(r'comment', views.CommentViewSet, basename='comment')
 
 urlpatterns = [
     path('', views.RouteList.as_view(), name='home'),
