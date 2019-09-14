@@ -34,6 +34,8 @@ class RouteList(LoginRequiredMixin, ListView):
     redirect_field_name = 'redirect_to'
 
     def get_queryset(self):
+        if self.request.user.is_superuser:
+            return Route.objects.all()
         friends1 = Friendship.objects                   \
                    .filter(user1=self.request.user)     \
                    .filter(is_accepted=True)            \
@@ -71,10 +73,11 @@ class UserDetail(LoginRequiredMixin, DetailView):
         Redirect if requested resource owner is not friend of user
         """
         user = get_object_or_404(User, pk=self.kwargs.get('pk'))
-        if user == self.request.user or Friendship.objects.filter(
+        if (user == self.request.user or Friendship.objects.filter(
             Q(user1=self.request.user, user2=user) |
             Q(user2=self.request.user, user1=user)
-           ).filter(is_accepted=True).exists():
+           ).filter(is_accepted=True).exists()
+           or self.request.user.is_superuser):
            return super(UserDetail, self).dispatch(request, *args, **kwargs)
         return redirect('home')
 
@@ -100,10 +103,11 @@ class RouteDetail(LoginRequiredMixin, DetailView):
         """
         route = get_object_or_404(Route, pk=self.kwargs.get('pk'))
         user = route.user
-        if user == self.request.user or Friendship.objects.filter(
+        if (user == self.request.user or Friendship.objects.filter(
             Q(user1=self.request.user, user2=user) |
             Q(user2=self.request.user, user1=user)
-           ).filter(is_accepted=True).exists():
+           ).filter(is_accepted=True).exists()
+           or self.request.user.is_superuser):
            return super(RouteDetail, self).dispatch(request, *args, **kwargs)
         return redirect('home')
 
@@ -128,6 +132,8 @@ class RouteDelete(LoginRequiredMixin, DeleteView):
     def get_queryset(self):
         owner = self.request.user
         pk = self.kwargs.get('pk')
+        if self.request.user.is_superuser:
+            return self.model.objects.filter(pk=pk)
         return self.model.objects.filter(pk=pk).filter(user=owner)
 
 class FriendView(LoginRequiredMixin, View):
@@ -205,6 +211,8 @@ class CommentCreateView(LoginRequiredMixin, View):
     redirect_field_name = 'redirect_to'
 
     def _get_queryset(self, request):
+        if request.user.is_superuser:
+            return Route.objects.all()
         friends1 = Friendship.objects                   \
                    .filter(user1=request.user)          \
                    .filter(is_accepted=True)            \
@@ -270,6 +278,8 @@ class UserViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def _get_queryset(self, request):
+        if request.user.is_superuser:
+            return User.objects.all()
         friends1 = Friendship.objects                   \
                    .filter(user1=request.user)          \
                    .filter(is_accepted=True)            \
@@ -301,6 +311,8 @@ class RouteViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
 
     def _get_queryset(self, request):
+        if request.user.is_superuser:
+            return Route.objects.all()
         friends1 = Friendship.objects                   \
                    .filter(user1=request.user)          \
                    .filter(is_accepted=True)            \
@@ -453,17 +465,22 @@ class CommentViewSet(viewsets.ViewSet):
         body = json.loads(body_unicode)
 
         # get routes
-        friends1 = Friendship.objects                   \
-                   .filter(user1=request.user)          \
-                   .filter(is_accepted=True)            \
-                   .values_list('user2', flat=True)
-        friends2 = Friendship.objects                   \
-                   .filter(user2=request.user)          \
-                   .filter(is_accepted=True)            \
-                   .values_list('user1', flat=True)
-        all_friends = list(chain(friends1, friends2))
-        all_friends.append(request.user)
-        queryset = Route.objects.filter(user__in=all_friends)
+        queryset = None
+        # admin access
+        if request.user.is_superuser:
+            queryset = Route.objects.all()
+        else:
+            friends1 = Friendship.objects                   \
+                       .filter(user1=request.user)          \
+                       .filter(is_accepted=True)            \
+                       .values_list('user2', flat=True)
+            friends2 = Friendship.objects                   \
+                       .filter(user2=request.user)          \
+                       .filter(is_accepted=True)            \
+                       .values_list('user1', flat=True)
+            all_friends = list(chain(friends1, friends2))
+            all_friends.append(request.user)
+            queryset = Route.objects.filter(user__in=all_friends)
 
         # create comment object
         route = get_object_or_404(queryset, pk=body['route'])
