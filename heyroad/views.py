@@ -259,7 +259,7 @@ class CommentDeleteView(LoginRequiredMixin, View):
                 raise PermissionError
             
             comment = get_object_or_404(Comment, pk=request.POST['pk'])
-            if comment.user == request.user:
+            if comment.user == request.user or request.user.is_superuser:
                 route_pk = comment.route.pk
                 comment.delete()
                 return redirect('route', pk=route_pk)

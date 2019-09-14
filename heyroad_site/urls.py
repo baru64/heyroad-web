@@ -22,5 +22,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('login/', views.LoginView.as_view(), name='login'),
     path('logout/', views.LogoutView.as_view(next_page='/'), name='logout'),
+    path(r'captcha/', include('captcha.urls')),
     path('', include('heyroad.urls')),
 ]

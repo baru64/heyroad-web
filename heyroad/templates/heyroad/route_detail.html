@@ -4,9 +4,11 @@
     <div class="post">
         <div class="date">
             {{ route.date }}
+            {% if user.is_authenticated and route.user == user or user.is_superuser  %}
             <a class="delete" href="{% url 'route-delete' pk=route.pk %}">
                 delete
             </a>
+            {% endif %}
         </div>
         <p><a href="{% url 'user' pk=route.user.pk %}">
             {{ route.user }}
@@ -36,7 +38,7 @@
         <div>
             <div class="date">
                 {{ comment.date }}
-                {% if user.is_authenticated and comment.user == user %}
+                {% if user.is_authenticated and comment.user == user or user.is_superuser %}
                 <form action="/comment/delete/" method="POST" class="post-form">
                     {% csrf_token %}
                     <input type="hidden" name="pk" value="{{ comment.pk }}">
