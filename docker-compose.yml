@@ -1,0 +1,19 @@
+version: '3'
+
+services:
+  db:
+    image: postgres:alpine
+
+  heyroad:
+    build: .
+    command: gunicorn heyroad_site.wsgi
+    depends_on:
+      - db
+
+  web:
+    image: nginx:1-alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./static:/static:ro
+    ports:
+      - "8080:80"
